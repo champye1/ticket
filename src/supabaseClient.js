@@ -5,8 +5,13 @@ import { createClient } from '@supabase/supabase-js'
 const supabaseUrl = 'https://cdahaxnpufcyykcevuzu.supabase.co'
 const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNkYWhheG5wdWZjeXlrY2V2dXp1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjA0NjUxNzgsImV4cCI6MjA3NjA0MTE3OH0.HIi9u4SNJUdXwYBlyT0wnjDsU1CKpaShZwBOhvLl4wA'
 
-// Crear el cliente de Supabase
-export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+// Crear el cliente de Supabase con opciones para evitar problemas de RLS
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    persistSession: false,
+    autoRefreshToken: false
+  }
+})
 
 // Función de utilidad para verificar la conexión
 export const testConnection = async () => {

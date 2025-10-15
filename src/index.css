@@ -1,4 +1,5 @@
-/* Estilos básicos sin Tailwind por ahora */
+@import "tailwindcss";
+/* Estilos básicos adicionales */
 body {
   margin: 0;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
