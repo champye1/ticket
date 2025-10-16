@@ -1,284 +1,88 @@
 import React, { useState } from 'react'
-import { supabase } from '../supabaseClient'
+import { PRIORITY } from '../constants'
 
-const TicketForm = ({ onTicketCreated, onCancel, editingTicket = null }) => {
+// Componente: TicketForm
+// Responsabilidad única: recoger datos para crear un ticket.
+// Clean Code:
+// - Sin lógica de datos (ni llamadas a Supabase): delega en onCreate.
+// - Controlado (estado local mínimo y validaciones claras).
+// - Estilos con utilidades Tailwind para mantener consistencia.
+const TicketForm = ({ onCreate, loading }) => {
   const [formData, setFormData] = useState({
-    title: editingTicket?.title || '',
-    description: editingTicket?.description || '',
-    customer_name: editingTicket?.customer_name || '',
-    customer_email: editingTicket?.customer_email || '',
-    priority: editingTicket?.priority || 'medium',
-    status: editingTicket?.status || 'open'
+    titulo: '',
+    descripcion: '',
+    prioridad: PRIORITY.MEDIUM
   })
-  const [loading, setLoading] = useState(false)
   const [errors, setErrors] = useState({})
 
   const validateForm = () => {
     const newErrors = {}
-
-    if (!formData.title.trim()) {
-      newErrors.title = 'El título es requerido'
-    }
-
-    if (!formData.description.trim()) {
-      newErrors.description = 'La descripción es requerida'
-    }
-
-    if (!formData.customer_name.trim()) {
-      newErrors.customer_name = 'El nombre del cliente es requerido'
-    }
-
-    if (!formData.customer_email.trim()) {
-      newErrors.customer_email = 'El email del cliente es requerido'
-    } else if (!/\S+@\S+\.\S+/.test(formData.customer_email)) {
-      newErrors.customer_email = 'El email no es válido'
-    }
-
+    if (!formData.titulo.trim()) newErrors.titulo = 'El título es requerido'
+    if (!formData.descripcion.trim()) newErrors.descripcion = 'La descripción es requerida'
     setErrors(newErrors)
     return Object.keys(newErrors).length === 0
   }
 
-  const handleSubmit = async (e) => {
-    e.preventDefault()
-
-    if (!validateForm()) {
-      return
-    }
-
-    setLoading(true)
-
-    try {
-      if (editingTicket) {
-        // Actualizar ticket existente
-        const { data, error } = await supabase
-          .from('tickets')
-          .update(formData)
-          .eq('id', editingTicket.id)
-          .select()
-
-        if (error) {
-          console.error('Error al actualizar ticket:', error)
-          return
-        }
-
-        if (data && data[0]) {
-          onTicketCreated(data[0])
-        }
-      } else {
-        // Crear nuevo ticket
-        const { data, error } = await supabase
-          .from('tickets')
-          .insert([formData])
-          .select()
-
-        if (error) {
-          console.error('Error al crear ticket:', error)
-          return
-        }
-
-        if (data && data[0]) {
-          onTicketCreated(data[0])
-        }
-      }
-    } catch (error) {
-      console.error('Error:', error)
-    } finally {
-      setLoading(false)
-    }
-  }
-
   const handleChange = (e) => {
     const { name, value } = e.target
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }))
+    setFormData(prev => ({ ...prev, [name]: value }))
+    if (errors[name]) setErrors(prev => ({ ...prev, [name]: '' }))
+  }
 
-    // Limpiar error cuando el usuario empiece a escribir
-    if (errors[name]) {
-      setErrors(prev => ({
-        ...prev,
-        [name]: ''
-      }))
-    }
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    if (!validateForm()) return
+    await onCreate(formData)
+    setFormData({ titulo: '', descripcion: '', prioridad: PRIORITY.MEDIUM })
   }
 
   return (
     <div>
-      <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px'}}>
-        <h2 style={{fontSize: '20px', fontWeight: '600', color: '#111827', margin: '0'}}>
-          {editingTicket ? 'Editar Ticket' : 'Nuevo Ticket'}
-        </h2>
-        <button
-          onClick={onCancel}
-          style={{
-            padding: '8px',
-            color: '#9ca3af',
-            border: 'none',
-            background: 'none',
-            cursor: 'pointer',
-            borderRadius: '4px'
-          }}
-          onMouseEnter={(e) => e.target.style.color = '#6b7280'}
-          onMouseLeave={(e) => e.target.style.color = '#9ca3af'}
-        >
-          ✕
-        </button>
-      </div>
-
-      <form onSubmit={handleSubmit} style={{display: 'flex', flexDirection: 'column', gap: '24px'}}>
-        <div className="form-group">
-          <label htmlFor="title" style={{display: 'block', marginBottom: '5px', fontWeight: '500'}}>
-            Título del Ticket *
-          </label>
+      <h2 className="text-xl sm:text-2xl font-semibold mb-4 sm:mb-6 text-gray-700 border-b pb-2">Crear Nuevo Ticket</h2>
+      <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6">
+        <div>
+          <label className="block text-gray-700 text-sm font-medium mb-2" htmlFor="titulo">Título</label>
           <input
+            id="titulo"
+            name="titulo"
             type="text"
-            id="title"
-            name="title"
-            value={formData.title}
+            value={formData.titulo}
             onChange={handleChange}
-            className="form-group input"
-            style={{
-              borderColor: errors.title ? '#ef4444' : '#d1d5db'
-            }}
-            placeholder="Describe brevemente el problema"
+            className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+            placeholder="Título del ticket"
           />
-          {errors.title && (
-            <p style={{marginTop: '4px', fontSize: '14px', color: '#dc2626'}}>{errors.title}</p>
-          )}
+          {errors.titulo && <p className="mt-1 text-sm text-red-600">{errors.titulo}</p>}
         </div>
-
-        <div className="form-group">
-          <label htmlFor="description" style={{display: 'block', marginBottom: '5px', fontWeight: '500'}}>
-            Descripción *
-          </label>
+        <div>
+          <label className="block text-gray-700 text-sm font-medium mb-2" htmlFor="descripcion">Descripción</label>
           <textarea
-            id="description"
-            name="description"
-            value={formData.description}
+            id="descripcion"
+            name="descripcion"
+            rows={3}
+            value={formData.descripcion}
             onChange={handleChange}
-            rows={4}
-            className="form-group textarea"
-            style={{
-              borderColor: errors.description ? '#ef4444' : '#d1d5db'
-            }}
-            placeholder="Proporciona detalles sobre el problema o solicitud"
+            className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+            placeholder="Descripción detallada del problema"
           />
-          {errors.description && (
-            <p style={{marginTop: '4px', fontSize: '14px', color: '#dc2626'}}>{errors.description}</p>
-          )}
+          {errors.descripcion && <p className="mt-1 text-sm text-red-600">{errors.descripcion}</p>}
         </div>
-
-        <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '24px'}}>
-          <div className="form-group">
-            <label htmlFor="customer_name" style={{display: 'block', marginBottom: '5px', fontWeight: '500'}}>
-              Nombre del Cliente *
-            </label>
-            <input
-              type="text"
-              id="customer_name"
-              name="customer_name"
-              value={formData.customer_name}
-              onChange={handleChange}
-              className="form-group input"
-              style={{
-                borderColor: errors.customer_name ? '#ef4444' : '#d1d5db'
-              }}
-              placeholder="Nombre completo del cliente"
-            />
-            {errors.customer_name && (
-              <p style={{marginTop: '4px', fontSize: '14px', color: '#dc2626'}}>{errors.customer_name}</p>
-            )}
-          </div>
-
-          <div className="form-group">
-            <label htmlFor="customer_email" style={{display: 'block', marginBottom: '5px', fontWeight: '500'}}>
-              Email del Cliente *
-            </label>
-            <input
-              type="email"
-              id="customer_email"
-              name="customer_email"
-              value={formData.customer_email}
-              onChange={handleChange}
-              className="form-group input"
-              style={{
-                borderColor: errors.customer_email ? '#ef4444' : '#d1d5db'
-              }}
-              placeholder="email@ejemplo.com"
-            />
-            {errors.customer_email && (
-              <p style={{marginTop: '4px', fontSize: '14px', color: '#dc2626'}}>{errors.customer_email}</p>
-            )}
-          </div>
-        </div>
-
-        <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '24px'}}>
-          <div className="form-group">
-            <label htmlFor="priority" style={{display: 'block', marginBottom: '5px', fontWeight: '500'}}>
-              Prioridad
-            </label>
-            <select
-              id="priority"
-              name="priority"
-              value={formData.priority}
-              onChange={handleChange}
-              className="form-group select"
-            >
-              <option value="low">Baja</option>
-              <option value="medium">Media</option>
-              <option value="high">Alta</option>
-            </select>
-          </div>
-
-          {editingTicket && (
-            <div className="form-group">
-              <label htmlFor="status" style={{display: 'block', marginBottom: '5px', fontWeight: '500'}}>
-                Estado
-              </label>
-              <select
-                id="status"
-                name="status"
-                value={formData.status}
-                onChange={handleChange}
-                className="form-group select"
-              >
-                <option value="open">Abierto</option>
-                <option value="in_progress">En Progreso</option>
-                <option value="closed">Cerrado</option>
-              </select>
-            </div>
-          )}
-        </div>
-
-        <div style={{display: 'flex', justifyContent: 'flex-end', gap: '12px', paddingTop: '16px'}}>
-          <button
-            type="button"
-            onClick={onCancel}
-            style={{
-              padding: '8px 16px',
-              color: '#374151',
-              backgroundColor: '#e5e7eb',
-              border: 'none',
-              borderRadius: '6px',
-              cursor: 'pointer',
-              transition: 'background-color 0.2s'
-            }}
-            onMouseEnter={(e) => e.target.style.backgroundColor = '#d1d5db'}
-            onMouseLeave={(e) => e.target.style.backgroundColor = '#e5e7eb'}
+        <div>
+          <label className="block text-gray-700 text-sm font-medium mb-2" htmlFor="prioridad">Prioridad</label>
+          <select
+            id="prioridad"
+            name="prioridad"
+            value={formData.prioridad}
+            onChange={handleChange}
+            className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
           >
-            Cancelar
-          </button>
-          <button
-            type="submit"
-            disabled={loading}
-            className="btn"
-            style={{
-              opacity: loading ? 0.5 : 1,
-              cursor: loading ? 'not-allowed' : 'pointer'
-            }}
-          >
-            {loading ? 'Guardando...' : (editingTicket ? 'Actualizar' : 'Crear Ticket')}
+            <option value={PRIORITY.LOW}>BAJA</option>
+            <option value={PRIORITY.MEDIUM}>MEDIA</option>
+            <option value={PRIORITY.HIGH}>ALTA</option>
+          </select>
+        </div>
+        <div className="flex justify-end">
+          <button type="submit" disabled={loading} className="px-6 py-3 bg-indigo-600 text-white font-medium rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+            {loading ? 'Creando…' : 'Crear Ticket'}
           </button>
         </div>
       </form>
