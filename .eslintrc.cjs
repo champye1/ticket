@@ -22,5 +22,11 @@ module.exports = {
     'import/order': ['warn', { 'newlines-between': 'always' }],
     'react-hooks/exhaustive-deps': 'warn'
   },
-  ignorePatterns: ['dist', 'node_modules']
+  ignorePatterns: ['dist', 'node_modules'],
+  overrides: [
+    {
+      files: ['**/__tests__/**', '**/*.test.ts', '**/*.test.tsx'],
+      env: { jest: true }
+    }
+  ]
 }

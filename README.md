@@ -4,12 +4,13 @@ Un sistema de gestión de tickets de soporte construido con React, Vite y Supaba
 
 ## 🚀 Características
 
-- ✅ Crear, editar y eliminar tickets
-- ✅ Gestión de estados (Abierto, En Progreso, Cerrado)
-- ✅ Prioridades (Baja, Media, Alta)
-- ✅ Dashboard con estadísticas
-- ✅ Interfaz moderna y responsive
-- ✅ Base de datos en tiempo real con Supabase
+- Crear, cerrar y reabrir tickets
+- Búsqueda por título o descripción
+- Estados: Abierto, En Progreso, Cerrado
+- Prioridades: Baja, Media, Alta
+- Interfaz responsive con Tailwind y tokens de diseño
+- Supabase como backend (lectura/escritura) + React Query (optimista)
+- Pruebas de UI con Vitest + Testing Library
 
 ## 📋 Prerequisitos
 
@@ -74,7 +75,7 @@ Un sistema de gestión de tickets de soporte construido con React, Vite y Supaba
    npm run dev
    ```
 
-6. Abre tu navegador en `http://localhost:5173`
+6. Abre tu navegador en `http://localhost:5174`
 
 ## 📁 Estructura del Proyecto
 
@@ -108,11 +109,11 @@ src/
 
 ## 📝 Uso
 
-1. **Crear un ticket**: Haz clic en "Nuevo Ticket" y completa el formulario
-2. **Ver tickets**: Todos los tickets se muestran en el dashboard principal
-3. **Actualizar estado**: Usa el selector de estado en cada ticket
-4. **Editar ticket**: Haz clic en el icono de editar
-5. **Eliminar ticket**: Haz clic en el icono de eliminar
+1. Crear un ticket: completa el formulario y pulsa "Crear ticket"
+2. Buscar: usa el campo de búsqueda por título o descripción
+3. Cambiar estado: botones "Cerrar Ticket" / "Reabrir" en cada tarjeta
+4. Eliminar: botón "Eliminar" en la tarjeta
+5. Actualizar lista: botón "Actualizar" en el encabezado
 
 ## 🔧 Configuración de Supabase
 
