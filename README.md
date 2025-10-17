@@ -131,10 +131,14 @@ VITE_SUPABASE_ANON_KEY=tu_supabase_anon_key
 ## 🚀 Despliegue
 
 ### Vercel (Recomendado)
-
-1. Conecta tu repositorio a Vercel
-2. Configura las variables de entorno
-3. Despliega automáticamente
+1. Importa el repositorio en Vercel (GitHub/GitLab/Bitbucket).
+2. Framework: Vite. Build: `npm run build`. Output: `dist`. Node: 18 o 20.
+3. Variables de entorno (Project Settings → Environment Variables):
+   - `VITE_SUPABASE_URL`: URL del proyecto Supabase
+   - `VITE_SUPABASE_ANON_KEY`: Anon key del proyecto Supabase
+   - No definas `VITE_PUBLIC_BASE` (en Vercel debe quedar vacío o sin crear).
+4. Despliega: Vercel hará el build automático y publicará en `https://<tu-proyecto>.vercel.app`.
+5. Opcional: añade dominio personalizado y actualiza la etiqueta `canonical` en `index.html`.
 
 ### Netlify
 
