@@ -4,20 +4,25 @@ import { createClient } from '@supabase/supabase-js'
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 
-if (!supabaseUrl || !supabaseAnonKey) {
+export const hasSupabaseEnv = Boolean(supabaseUrl && supabaseAnonKey)
+
+if (!hasSupabaseEnv) {
   console.warn('Faltan variables de entorno: VITE_SUPABASE_URL o VITE_SUPABASE_ANON_KEY')
 }
 
-// Crear el cliente de Supabase con opciones para evitar problemas de RLS
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-  auth: {
-    persistSession: false,
-    autoRefreshToken: false
-  }
-})
+// Inicialización segura: solo crear cliente si hay variables presentes
+export const supabase = hasSupabaseEnv
+  ? createClient(supabaseUrl, supabaseAnonKey, {
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false
+      }
+    })
+  : null
 
 // Función de utilidad para verificar la conexión
 export const testConnection = async () => {
+  if (!supabase) return false
   try {
     const { data, error } = await supabase.from('tickets').select('count')
     if (error) {

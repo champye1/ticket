@@ -34,6 +34,11 @@ const PRIORITY_DOMAIN_TO_DB = {
   [PRIORITY.LOW]: 'low'
 }
 
+function ensureDb() {
+  if (!supabase) throw new AppError(ErrorCodes.DB_CONNECTION, 'Supabase no configurado. Revisa VITE_SUPABASE_URL y VITE_SUPABASE_ANON_KEY.')
+  return supabase
+}
+
 /**
  * Convierte una fila de BD al modelo de dominio.
  * @param {any} row
@@ -61,7 +66,8 @@ export function mapDbToDomain(row) {
 
 // Obtiene todos los tickets ordenados por fecha de creación y mapea campos.
 export async function getAllTickets() {
-  const { data, error } = await supabase
+  const db = ensureDb()
+  const { data, error } = await db
     .from(TABLES.TICKETS)
     .select('*')
     .order('created_at', { ascending: false })
@@ -72,9 +78,10 @@ export async function getAllTickets() {
 
 // Paginación básica con count exacto
 export async function getTicketsPaged({ page = 1, pageSize = 20 } = {}) {
+  const db = ensureDb()
   const from = (page - 1) * pageSize
   const to = from + pageSize - 1
-  const { data, error, count } = await supabase
+  const { data, error, count } = await db
     .from(TABLES.TICKETS)
     .select('*', { count: 'exact' })
     .order('created_at', { ascending: false })
@@ -89,6 +96,7 @@ export async function createTicket({ titulo, descripcion, prioridad, estado = TI
   const ok = await testConnection()
   if (!ok) throw new AppError(ErrorCodes.DB_CONNECTION, 'No hay conexión con la base de datos')
 
+  const db = ensureDb()
   // Validación y normalización
   const valid = validateCreateTicket({ titulo, descripcion, prioridad, estado })
 
@@ -108,21 +116,22 @@ export async function createTicket({ titulo, descripcion, prioridad, estado = TI
     created_at: createdAt
   }
 
-  const first = await supabase.from(TABLES.TICKETS).insert([payloadEN]).select()
+  const first = await db.from(TABLES.TICKETS).insert([payloadEN]).select()
   if (!first.error) {
     return mapDbToDomain(first.data?.[0])
   }
 
-  const fallback = await supabase.from(TABLES.TICKETS).insert([payloadES]).select()
+  const fallback = await db.from(TABLES.TICKETS).insert([payloadES]).select()
   if (fallback.error) throw fromSupabase(fallback.error)
   return mapDbToDomain(fallback.data?.[0])
 }
 
 // Actualiza el estado de un ticket.
 export async function updateTicketStatus(id, newStatus) {
+  const db = ensureDb()
   const valid = validateUpdateTicketStatus({ id, newStatus })
 
-  const first = await supabase
+  const first = await db
     .from(TABLES.TICKETS)
     .update({ status: STATUS_DOMAIN_TO_DB[valid.newStatus] || 'open' })
     .eq('id', valid.id)
@@ -132,7 +141,7 @@ export async function updateTicketStatus(id, newStatus) {
     return mapDbToDomain(first.data?.[0])
   }
 
-  const fallback = await supabase
+  const fallback = await db
     .from(TABLES.TICKETS)
     .update({ estado: valid.newStatus })
     .eq('id', valid.id)
@@ -144,7 +153,8 @@ export async function updateTicketStatus(id, newStatus) {
 
 // Elimina un ticket por id.
 export async function deleteTicket(id) {
-  const { error } = await supabase
+  const db = ensureDb()
+  const { error } = await db
     .from(TABLES.TICKETS)
     .delete()
     .eq('id', id)
