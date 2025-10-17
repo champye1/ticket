@@ -1,6 +1,13 @@
 import { supabase, testConnection } from '../supabaseClient'
 import { TABLES, TICKET_STATUS, PRIORITY } from '../constants'
 import { AppError, ErrorCodes, fromSupabase } from '../errors'
+import { validateCreateTicket, validateUpdateTicketStatus } from '../validation'
+
+/**
+ * @typedef {import('../types').Ticket} Ticket
+ * @typedef {import('../types').CreateTicketDTO} CreateTicketDTO
+ * @typedef {import('../types').PagedResult<Ticket>} PagedTickets
+ */
 
 // Mapeos entre esquema de BD (inglés) y modelo de dominio (español)
 const STATUS_DB_TO_DOMAIN = {
@@ -27,9 +34,13 @@ const PRIORITY_DOMAIN_TO_DB = {
   [PRIORITY.LOW]: 'low'
 }
 
-function mapDbToDomain(row) {
+/**
+ * Convierte una fila de BD al modelo de dominio.
+ * @param {any} row
+ * @returns {Ticket|null}
+ */
+export function mapDbToDomain(row) {
   if (!row) return null
-  // Soporta columnas en inglés (title/description/status/priority) y español (titulo/descripcion/estado/prioridad)
   const titulo = row.title ?? row.titulo ?? ''
   const descripcion = row.description ?? row.descripcion ?? ''
   const prioridadRaw = row.priority ?? row.prioridad
@@ -78,19 +89,22 @@ export async function createTicket({ titulo, descripcion, prioridad, estado = TI
   const ok = await testConnection()
   if (!ok) throw new AppError(ErrorCodes.DB_CONNECTION, 'No hay conexión con la base de datos')
 
+  // Validación y normalización
+  const valid = validateCreateTicket({ titulo, descripcion, prioridad, estado })
+
   const createdAt = new Date().toISOString()
   const payloadEN = {
-    title: titulo,
-    description: descripcion,
-    status: STATUS_DOMAIN_TO_DB[estado] || 'open',
-    priority: PRIORITY_DOMAIN_TO_DB[prioridad] || 'medium',
+    title: valid.titulo,
+    description: valid.descripcion,
+    status: STATUS_DOMAIN_TO_DB[valid.estado] || 'open',
+    priority: PRIORITY_DOMAIN_TO_DB[valid.prioridad] || 'medium',
     created_at: createdAt
   }
   const payloadES = {
-    titulo,
-    descripcion,
-    estado,
-    prioridad,
+    titulo: valid.titulo,
+    descripcion: valid.descripcion,
+    estado: valid.estado,
+    prioridad: valid.prioridad,
     created_at: createdAt
   }
 
@@ -106,10 +120,12 @@ export async function createTicket({ titulo, descripcion, prioridad, estado = TI
 
 // Actualiza el estado de un ticket.
 export async function updateTicketStatus(id, newStatus) {
+  const valid = validateUpdateTicketStatus({ id, newStatus })
+
   const first = await supabase
     .from(TABLES.TICKETS)
-    .update({ status: STATUS_DOMAIN_TO_DB[newStatus] || 'open' })
-    .eq('id', id)
+    .update({ status: STATUS_DOMAIN_TO_DB[valid.newStatus] || 'open' })
+    .eq('id', valid.id)
     .select()
 
   if (!first.error) {
@@ -118,8 +134,8 @@ export async function updateTicketStatus(id, newStatus) {
 
   const fallback = await supabase
     .from(TABLES.TICKETS)
-    .update({ estado: newStatus })
-    .eq('id', id)
+    .update({ estado: valid.newStatus })
+    .eq('id', valid.id)
     .select()
 
   if (fallback.error) throw fromSupabase(fallback.error)

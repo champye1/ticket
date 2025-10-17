@@ -1,98 +1,113 @@
-import React, { useState } from 'react'
-import { PRIORITY } from '../constants'
+import React, { useEffect, useState } from 'react'
 
-// Componente: TicketForm
-// Responsabilidad única: recoger datos para crear un ticket.
-// Clean Code:
-// - Sin lógica de datos (ni llamadas a Supabase): delega en onCreate.
-// - Controlado (estado local mínimo y validaciones claras).
-// - Estilos con utilidades Tailwind para mantener consistencia.
-const TicketForm = ({ onCreate, loading, error }) => {
-  const [formData, setFormData] = useState({
-    titulo: '',
-    descripcion: '',
-    prioridad: PRIORITY.MEDIUM
-  })
+export default function TicketForm({ onCreate, loading, error, fieldErrors, onDismissError }) {
+  const [titulo, setTitulo] = useState('')
+  const [descripcion, setDescripcion] = useState('')
+  const [prioridad, setPrioridad] = useState('MEDIA')
+
   const [errors, setErrors] = useState({})
 
-  const validateForm = () => {
-    const newErrors = {}
-    if (!formData.titulo.trim()) newErrors.titulo = 'El título es requerido'
-    if (!formData.descripcion.trim()) newErrors.descripcion = 'La descripción es requerida'
-    setErrors(newErrors)
-    return Object.keys(newErrors).length === 0
-  }
+  useEffect(() => {
+    setErrors({})
+  }, [loading])
 
-  const handleChange = (e) => {
-    const { name, value } = e.target
-    setFormData(prev => ({ ...prev, [name]: value }))
-    if (errors[name]) setErrors(prev => ({ ...prev, [name]: '' }))
-  }
+  useEffect(() => {
+    if (!error) return
+    if (error?.code === 'VALIDATION' && error?.cause?.errors?.length) {
+      const map = {}
+      for (const issue of error.cause.errors) {
+        const field = issue.path?.[0]
+        if (field) map[field] = issue.message
+      }
+      setErrors(prev => ({ ...prev, ...map }))
+    }
+  }, [error])
 
-  const handleSubmit = async (e) => {
+  useEffect(() => {
+    if (!fieldErrors) return
+    setErrors(prev => ({ ...prev, ...fieldErrors }))
+  }, [fieldErrors])
+
+  async function handleSubmit(e) {
     e.preventDefault()
-    if (!validateForm()) return
-    await onCreate(formData)
-    setFormData({ titulo: '', descripcion: '', prioridad: PRIORITY.MEDIUM })
+    setErrors({})
+    try {
+      await onCreate({ titulo, descripcion, prioridad })
+      setTitulo('')
+      setDescripcion('')
+      setPrioridad('MEDIA')
+    } catch (err) {
+      // No dejar promesas sin capturar; UI usa error/fieldErrors para mostrarlo
+    }
   }
 
   return (
-    <div>
-      <h2 className="text-xl sm:text-2xl font-semibold mb-4 sm:mb-6 text-gray-700 border-b pb-2">Crear Nuevo Ticket</h2>
-      <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6">
-        <div>
-          <label className="block text-gray-700 text-sm font-medium mb-2" htmlFor="titulo">Título</label>
-          <input
-            id="titulo"
-            name="titulo"
-            type="text"
-            value={formData.titulo}
-            onChange={handleChange}
-            className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-            placeholder="Título del ticket"
-          />
-          {errors.titulo && <p className="mt-1 text-sm text-red-600">{errors.titulo}</p>}
-        </div>
-        <div>
-          <label className="block text-gray-700 text-sm font-medium mb-2" htmlFor="descripcion">Descripción</label>
-          <textarea
-            id="descripcion"
-            name="descripcion"
-            rows={3}
-            value={formData.descripcion}
-            onChange={handleChange}
-            className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-            placeholder="Descripción detallada del problema"
-          />
-          {errors.descripcion && <p className="mt-1 text-sm text-red-600">{errors.descripcion}</p>}
-        </div>
-        <div>
-          <label className="block text-gray-700 text-sm font-medium mb-2" htmlFor="prioridad">Prioridad</label>
-          <select
-            id="prioridad"
-            name="prioridad"
-            value={formData.prioridad}
-            onChange={handleChange}
-            className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-          >
-            <option value={PRIORITY.LOW}>BAJA</option>
-            <option value={PRIORITY.MEDIUM}>MEDIA</option>
-            <option value={PRIORITY.HIGH}>ALTA</option>
-          </select>
-        </div>
-        <div className="flex justify-end">
-          <button type="submit" disabled={loading} className="px-6 py-3 bg-indigo-600 text-white font-medium rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500">
-            {loading ? 'Creando…' : 'Crear Ticket'}
-          </button>
-        </div>
-        {error && (
-          <p className="mt-3 text-sm text-red-600">
-            {error.message || 'No se pudo crear el ticket.'}
-          </p>
+    <form onSubmit={handleSubmit} className="space-y-4 p-4 border rounded-md bg-white">
+      <div>
+        <label className="block text-sm font-medium text-gray-700">Título</label>
+        <input
+          type="text"
+          value={titulo}
+          onChange={(e) => setTitulo(e.target.value)}
+          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+          placeholder="Ej: Error en login"
+        />
+        {errors.titulo && (
+          <p className="mt-1 text-xs text-red-600">{errors.titulo}</p>
         )}
-      </form>
-    </div>
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-gray-700">Descripción</label>
+        <textarea
+          value={descripcion}
+          onChange={(e) => setDescripcion(e.target.value)}
+          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+          rows={3}
+          placeholder="Describe el problema..."
+        />
+        {errors.descripcion && (
+          <p className="mt-1 text-xs text-red-600">{errors.descripcion}</p>
+        )}
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-gray-700">Prioridad</label>
+        <select
+          value={prioridad}
+          onChange={(e) => setPrioridad(e.target.value)}
+          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+        >
+          <option value="BAJA">Baja</option>
+          <option value="MEDIA">Media</option>
+          <option value="ALTA">Alta</option>
+        </select>
+        {errors.prioridad && (
+          <p className="mt-1 text-xs text-red-600">{errors.prioridad}</p>
+        )}
+      </div>
+
+      {error && error.code !== 'VALIDATION' && (
+        <div className="rounded-md bg-red-50 p-3 text-red-800 text-sm">
+          {error.message || 'Ha ocurrido un error.'}
+          {onDismissError && (
+            <button type="button" onClick={onDismissError} className="ml-2 text-red-700 underline">Cerrar</button>
+          )}
+        </div>
+      )}
+
+      <div className="flex items-center gap-2">
+        <button
+          type="submit"
+          disabled={loading}
+          className="inline-flex items-center rounded-md bg-indigo-600 px-4 py-2 text-white shadow-sm hover:bg-indigo-700 disabled:opacity-50"
+        >
+          {loading ? 'Guardando...' : 'Crear ticket'}
+        </button>
+        {onDismissError && (
+          <button type="button" onClick={onDismissError} className="text-sm text-gray-600">Limpiar errores</button>
+        )}
+      </div>
+    </form>
   )
 }
-
-export default TicketForm

@@ -11,6 +11,7 @@ export function useTickets() {
 
   const [searchTerm, setSearchTerm] = useState('')
   const [error, setError] = useState(null)
+  const [fieldErrors, setFieldErrors] = useState(null)
   const [page] = useState(1)
   const [pageSize] = useState(20)
 
@@ -66,6 +67,17 @@ export function useTickets() {
     onError: (err, _vars, ctx) => {
       if (ctx?.previous) queryClient.setQueryData(['tickets', page, pageSize], ctx.previous)
       setError(err)
+      // Extraer errores por campo si provienen de zod
+      if (err?.code === 'VALIDATION' && err?.cause?.errors?.length) {
+        const map = {}
+        for (const issue of err.cause.errors) {
+          const field = issue.path?.[0]
+          if (field) map[field] = issue.message
+        }
+        setFieldErrors(map)
+      } else {
+        setFieldErrors(null)
+      }
     },
     onSuccess: (created) => {
       queryClient.setQueryData(['tickets', page, pageSize], (old) => ({
@@ -128,10 +140,12 @@ export function useTickets() {
 
   function refresh() {
     setError(null)
+    setFieldErrors(null)
     return refetch()
   }
   function addTicket({ titulo, descripcion, prioridad }) {
     setError(null)
+    setFieldErrors(null)
     return addMutation.mutateAsync({ titulo, descripcion, prioridad })
   }
   function setTicketStatus(id, newStatus) {
@@ -144,6 +158,7 @@ export function useTickets() {
   }
   function clearError() {
     setError(null)
+    setFieldErrors(null)
   }
 
   const loading = isQueryLoading || isFetching || addMutation.isLoading || updateMutation.isLoading || deleteMutation.isLoading
@@ -158,6 +173,7 @@ export function useTickets() {
     setTicketStatus,
     removeTicket,
     error,
+    fieldErrors,
     clearError
   }
 }
