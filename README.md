@@ -29,7 +29,12 @@ Un sistema de gestión de tickets de soporte construido con React, Vite y Supaba
    - Crea un nuevo proyecto
    - Ve a Settings > API
    - Copia la URL del proyecto y la clave 'anon public'
-   - Actualiza el archivo `src/supabaseClient.js` con tus credenciales
+   - Crea un archivo `.env` en la raíz con:
+  ```env
+  VITE_SUPABASE_URL=tu_supabase_url
+  VITE_SUPABASE_ANON_KEY=tu_clave_anon
+  ```
+- Las credenciales se leen desde `import.meta.env` en `src/supabaseClient.js`
 
 4. Configura la base de datos:
    - Ve a SQL Editor en tu dashboard de Supabase
@@ -76,13 +81,20 @@ Un sistema de gestión de tickets de soporte construido con React, Vite y Supaba
 ```
 src/
 ├── components/
-│   ├── Dashboard.jsx      # Componente principal del dashboard
+│   ├── Header.jsx         # Hero y CTA
+│   ├── SearchBar.jsx      # Búsqueda controlada
+│   ├── TicketCard.jsx     # Tarjeta de ticket
 │   ├── TicketList.jsx     # Lista de tickets
-│   └── TicketForm.jsx     # Formulario para crear/editar tickets
-├── supabaseClient.js      # Configuración de Supabase
-├── App.jsx               # Componente raíz
-├── main.jsx              # Punto de entrada
-└── index.css             # Estilos globales
+│   └── TicketForm.jsx     # Formulario para crear tickets
+├── services/
+│   └── ticketService.js   # Operaciones CRUD y mapeo dominio/BD
+├── hooks/
+│   └── useTickets.js      # Estado central con React Query
+├── errors.js              # Normalización de errores
+├── supabaseClient.js      # Cliente Supabase con variables de entorno
+├── App.jsx                # Orquestador de la UI
+├── main.jsx               # Punto de entrada con QueryClientProvider
+└── index.css              # Estilos globales
 ```
 
 ## 🎨 Tecnologías Utilizadas
@@ -90,6 +102,7 @@ src/
 - **React** - Biblioteca de JavaScript para interfaces de usuario
 - **Vite** - Herramienta de construcción rápida
 - **Supabase** - Backend como servicio (BaaS)
+- **TanStack React Query** - Caché, reintentos y actualizaciones optimistas
 - **Tailwind CSS** - Framework de CSS utilitario
 - **Lucide React** - Iconos
 
@@ -103,21 +116,16 @@ src/
 
 ## 🔧 Configuración de Supabase
 
-### Variables de Entorno (Opcional)
+### Variables de Entorno
 
-Puedes crear un archivo `.env.local` para manejar las credenciales de forma más segura:
+Este proyecto usa variables de entorno de Vite. Crea un `.env` en la raíz:
 
 ```env
-VITE_SUPABASE_URL=tu_supabase_url_aqui
-VITE_SUPABASE_ANON_KEY=tu_supabase_anon_key_aqui
+VITE_SUPABASE_URL=tu_supabase_url
+VITE_SUPABASE_ANON_KEY=tu_supabase_anon_key
 ```
 
-Luego actualiza `src/supabaseClient.js`:
-
-```javascript
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
-```
+`src/supabaseClient.js` ya lee estas variables vía `import.meta.env`. No subas `.env` al repositorio.
 
 ## 🚀 Despliegue
 

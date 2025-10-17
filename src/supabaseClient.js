@@ -1,9 +1,12 @@
 import { createClient } from '@supabase/supabase-js'
 
-// Credenciales de Supabase
-// Obtenidas desde el dashboard de Supabase > Settings > API
-const supabaseUrl = 'https://cdahaxnpufcyykcevuzu.supabase.co'
-const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNkYWhheG5wdWZjeXlrY2V2dXp1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjA0NjUxNzgsImV4cCI6MjA3NjA0MTE3OH0.HIi9u4SNJUdXwYBlyT0wnjDsU1CKpaShZwBOhvLl4wA'
+// Credenciales de Supabase desde variables de entorno (Vite)
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+
+if (!supabaseUrl || !supabaseAnonKey) {
+  console.warn('Faltan variables de entorno: VITE_SUPABASE_URL o VITE_SUPABASE_ANON_KEY')
+}
 
 // Crear el cliente de Supabase con opciones para evitar problemas de RLS
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {

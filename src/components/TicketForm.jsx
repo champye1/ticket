@@ -7,7 +7,7 @@ import { PRIORITY } from '../constants'
 // - Sin lógica de datos (ni llamadas a Supabase): delega en onCreate.
 // - Controlado (estado local mínimo y validaciones claras).
 // - Estilos con utilidades Tailwind para mantener consistencia.
-const TicketForm = ({ onCreate, loading }) => {
+const TicketForm = ({ onCreate, loading, error }) => {
   const [formData, setFormData] = useState({
     titulo: '',
     descripcion: '',
@@ -85,6 +85,11 @@ const TicketForm = ({ onCreate, loading }) => {
             {loading ? 'Creando…' : 'Crear Ticket'}
           </button>
         </div>
+        {error && (
+          <p className="mt-3 text-sm text-red-600">
+            {error.message || 'No se pudo crear el ticket.'}
+          </p>
+        )}
       </form>
     </div>
   )

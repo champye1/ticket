@@ -1,82 +1,154 @@
 // Hook personalizado: centraliza el estado y reglas de negocio de tickets.
-// Evita prop drilling y organiza toda la interacción con la capa de servicio.
+// Ahora usa React Query para caché, reintentos e updates optimistas.
 
 import { useEffect, useMemo, useState } from 'react'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { TICKET_STATUS } from '../constants'
-import { getAllTickets, createTicket, updateTicketStatus, deleteTicket } from '../services/ticketService'
+import { getTicketsPaged, createTicket, updateTicketStatus, deleteTicket } from '../services/ticketService'
 
 export function useTickets() {
-  const [tickets, setTickets] = useState([])
-  const [loading, setLoading] = useState(false)
+  const queryClient = useQueryClient()
+
   const [searchTerm, setSearchTerm] = useState('')
+  const [error, setError] = useState(null)
+  const [page] = useState(1)
+  const [pageSize] = useState(20)
 
-  // Cargar al montar
+  const {
+    data: pageData,
+    error: queryError,
+    isLoading: isQueryLoading,
+    isFetching,
+    refetch
+  } = useQuery({
+    queryKey: ['tickets', page, pageSize],
+    queryFn: () => getTicketsPaged({ page, pageSize }),
+    staleTime: 30_000
+  })
+
   useEffect(() => {
-    refresh()
+    if (queryError) setError(queryError)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [queryError])
 
-  // Consultar todos los tickets
-  async function refresh() {
-    setLoading(true)
-    try {
-      const data = await getAllTickets()
-      setTickets(data)
-    } catch (err) {
-      console.error('Error al cargar tickets:', err)
-    } finally {
-      setLoading(false)
-    }
-  }
+  const tickets = pageData?.items || []
 
-  // Crear nuevo ticket
-  async function addTicket({ titulo, descripcion, prioridad }) {
-    setLoading(true)
-    try {
-      const created = await createTicket({ titulo, descripcion, prioridad, estado: TICKET_STATUS.OPEN })
-      if (created) setTickets(prev => [created, ...prev])
-    } catch (err) {
-      console.error('Error al crear ticket:', err)
-      throw err
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  // Actualizar estado
-  async function setTicketStatus(id, newStatus) {
-    try {
-      const updated = await updateTicketStatus(id, newStatus)
-      if (updated) {
-        setTickets(prev => prev.map(t => (t.id === id ? updated : t)))
-      }
-    } catch (err) {
-      console.error('Error al actualizar estado:', err)
-    }
-  }
-
-  // Eliminar
-  async function removeTicket(id) {
-    try {
-      await deleteTicket(id)
-      setTickets(prev => prev.filter(t => t.id !== id))
-    } catch (err) {
-      console.error('Error al eliminar:', err)
-    }
-  }
-
-  // Filtro de búsqueda (case-insensitive en título y descripción)
   const filteredTickets = useMemo(() => {
-    const term = searchTerm.trim().toLowerCase()
-    if (!term) return tickets
+    if (!searchTerm) return tickets
+    const term = searchTerm.toLowerCase()
     return tickets.filter(t =>
       (t.titulo || '').toLowerCase().includes(term) ||
       (t.descripcion || '').toLowerCase().includes(term)
     )
   }, [tickets, searchTerm])
 
+  // Crear nuevo ticket con update optimista
+  const addMutation = useMutation({
+    mutationFn: ({ titulo, descripcion, prioridad }) =>
+      createTicket({ titulo, descripcion, prioridad, estado: TICKET_STATUS.OPEN }),
+    onMutate: async (variables) => {
+      await queryClient.cancelQueries({ queryKey: ['tickets', page, pageSize] })
+      const previous = queryClient.getQueryData(['tickets', page, pageSize])
+      const optimistic = {
+        id: `temp-${Date.now()}`,
+        titulo: variables.titulo,
+        descripcion: variables.descripcion,
+        prioridad: variables.prioridad,
+        estado: TICKET_STATUS.OPEN,
+        created_at: new Date().toISOString()
+      }
+      queryClient.setQueryData(['tickets', page, pageSize], (old) => ({
+        items: [optimistic, ...(old?.items || [])],
+        total: (old?.total || 0) + 1
+      }))
+      return { previous }
+    },
+    onError: (err, _vars, ctx) => {
+      if (ctx?.previous) queryClient.setQueryData(['tickets', page, pageSize], ctx.previous)
+      setError(err)
+    },
+    onSuccess: (created) => {
+      queryClient.setQueryData(['tickets', page, pageSize], (old) => ({
+        items: [created, ...((old?.items || []).filter(t => !String(t.id).startsWith('temp-')))],
+        total: old?.total ?? 0
+      }))
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['tickets'] })
+    }
+  })
+
+  // Actualizar estado con update optimista
+  const updateMutation = useMutation({
+    mutationFn: ({ id, newStatus }) => updateTicketStatus(id, newStatus),
+    onMutate: async ({ id, newStatus }) => {
+      await queryClient.cancelQueries({ queryKey: ['tickets', page, pageSize] })
+      const previous = queryClient.getQueryData(['tickets', page, pageSize])
+      queryClient.setQueryData(['tickets', page, pageSize], (old) => ({
+        items: (old?.items || []).map(t => (t.id === id ? { ...t, estado: newStatus } : t)),
+        total: old?.total ?? 0
+      }))
+      return { previous }
+    },
+    onError: (err, _vars, ctx) => {
+      if (ctx?.previous) queryClient.setQueryData(['tickets', page, pageSize], ctx.previous)
+      setError(err)
+    },
+    onSuccess: (updated) => {
+      queryClient.setQueryData(['tickets', page, pageSize], (old) => ({
+        items: (old?.items || []).map(t => (t.id === updated.id ? updated : t)),
+        total: old?.total ?? 0
+      }))
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['tickets'] })
+    }
+  })
+
+  // Eliminar con update optimista
+  const deleteMutation = useMutation({
+    mutationFn: (id) => deleteTicket(id),
+    onMutate: async (id) => {
+      await queryClient.cancelQueries({ queryKey: ['tickets', page, pageSize] })
+      const previous = queryClient.getQueryData(['tickets', page, pageSize])
+      queryClient.setQueryData(['tickets', page, pageSize], (old) => ({
+        items: (old?.items || []).filter(t => t.id !== id),
+        total: Math.max((old?.total || 1) - 1, 0)
+      }))
+      return { previous }
+    },
+    onError: (err, _vars, ctx) => {
+      if (ctx?.previous) queryClient.setQueryData(['tickets', page, pageSize], ctx.previous)
+      setError(err)
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['tickets'] })
+    }
+  })
+
+  function refresh() {
+    setError(null)
+    return refetch()
+  }
+  function addTicket({ titulo, descripcion, prioridad }) {
+    setError(null)
+    return addMutation.mutateAsync({ titulo, descripcion, prioridad })
+  }
+  function setTicketStatus(id, newStatus) {
+    setError(null)
+    return updateMutation.mutateAsync({ id, newStatus })
+  }
+  function removeTicket(id) {
+    setError(null)
+    return deleteMutation.mutateAsync(id)
+  }
+  function clearError() {
+    setError(null)
+  }
+
+  const loading = isQueryLoading || isFetching || addMutation.isLoading || updateMutation.isLoading || deleteMutation.isLoading
+
   return {
-    tickets,
     filteredTickets,
     loading,
     searchTerm,
@@ -84,6 +156,8 @@ export function useTickets() {
     refresh,
     addTicket,
     setTicketStatus,
-    removeTicket
+    removeTicket,
+    error,
+    clearError
   }
 }

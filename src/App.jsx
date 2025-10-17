@@ -17,7 +17,9 @@ function App() {
     refresh,
     addTicket,
     setTicketStatus,
-    removeTicket
+    removeTicket,
+    error,
+    clearError
   } = useTickets()
 
   return (
@@ -34,8 +36,18 @@ function App() {
               {loading ? 'Actualizando…' : 'Actualizar'}
             </button>
           </div>
+
+          {error && (
+            <div className="mt-4 flex items-start justify-between gap-3 rounded-md border border-red-300 bg-red-50 p-3">
+              <div className="text-sm text-red-700">
+                {error.message || 'Ocurrió un error. Intenta de nuevo.'}
+              </div>
+              <button onClick={clearError} className="text-xs text-red-700 hover:underline">Cerrar</button>
+            </div>
+          )}
+
           <div id="nuevo-ticket" className="mt-6">
-            <TicketForm onCreate={addTicket} loading={loading} />
+            <TicketForm onCreate={addTicket} loading={loading} error={error} />
           </div>
         </div>
 
