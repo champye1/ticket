@@ -34,6 +34,13 @@ export default function App() {
         </div>
       </header>
 
+      {/* Aviso de error general para operaciones (update/delete) */}
+      {error && error.code !== 'VALIDATION' && (
+        <div className="mb-4 rounded-md border border-red-300 bg-red-50 p-3 text-red-800">
+          <span className="text-sm">{error.message || 'Ha ocurrido un error realizando la operación.'}</span>
+        </div>
+      )}
+
       <section className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="md:col-span-1">
           <TicketForm

@@ -19,7 +19,7 @@ export const CreateTicketSchema = z.object({
 
 // Schema para actualización de estado
 export const UpdateTicketStatusSchema = z.object({
-  id: z.string().min(1, 'ID inválido'), // No forzamos UUID por compatibilidad
+  id: z.coerce.string().min(1, 'ID inválido'), // Acepta number y lo convierte a string
   newStatus: z.enum(STATUS_VALUES, {
     errorMap: () => ({ message: 'Estado inválido' }),
   }),

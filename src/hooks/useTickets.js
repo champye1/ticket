@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { TICKET_STATUS } from '../constants'
 import { getTicketsPaged, createTicket, updateTicketStatus, deleteTicket } from '../services/ticketService'
+import { AppError, ErrorCodes } from '../errors'
 
 export function useTickets() {
   const queryClient = useQueryClient()
@@ -24,7 +25,9 @@ export function useTickets() {
   } = useQuery({
     queryKey: ['tickets', page, pageSize],
     queryFn: () => getTicketsPaged({ page, pageSize }),
-    staleTime: 30_000
+    staleTime: Infinity,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false
   })
 
   useEffect(() => {
@@ -86,7 +89,7 @@ export function useTickets() {
       }))
     },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ['tickets'] })
+      // Sin auto-refetch; el usuario decide con "Actualizar"
     }
   })
 
@@ -97,7 +100,7 @@ export function useTickets() {
       await queryClient.cancelQueries({ queryKey: ['tickets', page, pageSize] })
       const previous = queryClient.getQueryData(['tickets', page, pageSize])
       queryClient.setQueryData(['tickets', page, pageSize], (old) => ({
-        items: (old?.items || []).map(t => (t.id === id ? { ...t, estado: newStatus } : t)),
+        items: (old?.items || []).map(t => (String(t.id) === String(id) ? { ...t, estado: newStatus } : t)),
         total: old?.total ?? 0
       }))
       return { previous }
@@ -108,12 +111,12 @@ export function useTickets() {
     },
     onSuccess: (updated) => {
       queryClient.setQueryData(['tickets', page, pageSize], (old) => ({
-        items: (old?.items || []).map(t => (t.id === updated.id ? updated : t)),
+        items: (old?.items || []).map(t => (String(t.id) === String(updated.id) ? updated : t)),
         total: old?.total ?? 0
       }))
     },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ['tickets'] })
+      // Sin auto-refetch; el usuario decide con "Actualizar"
     }
   })
 
@@ -124,7 +127,7 @@ export function useTickets() {
       await queryClient.cancelQueries({ queryKey: ['tickets', page, pageSize] })
       const previous = queryClient.getQueryData(['tickets', page, pageSize])
       queryClient.setQueryData(['tickets', page, pageSize], (old) => ({
-        items: (old?.items || []).filter(t => t.id !== id),
+        items: (old?.items || []).filter(t => String(t.id) !== String(id)),
         total: Math.max((old?.total || 1) - 1, 0)
       }))
       return { previous }
@@ -134,7 +137,7 @@ export function useTickets() {
       setError(err)
     },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ['tickets'] })
+      // Sin auto-refetch; el usuario decide con "Actualizar"
     }
   })
 
@@ -150,10 +153,22 @@ export function useTickets() {
   }
   function setTicketStatus(id, newStatus) {
     setError(null)
+    if (String(id).startsWith('temp-')) {
+      setError(new AppError(ErrorCodes.UNKNOWN, 'Este ticket aún se está creando. Pulsa “Actualizar” y vuelve a intentar cuando tenga un ID real.'))
+      return Promise.reject(new Error('Ticket temporal'))
+    }
     return updateMutation.mutateAsync({ id, newStatus })
   }
   function removeTicket(id) {
     setError(null)
+    if (String(id).startsWith('temp-')) {
+      // Ya se quita localmente; evitar llamar al backend con id inválido
+      queryClient.setQueryData(['tickets', page, pageSize], (old) => ({
+        items: (old?.items || []).filter(t => String(t.id) !== String(id)),
+        total: Math.max((old?.total || 1) - 1, 0)
+      }))
+      return Promise.resolve(true)
+    }
     return deleteMutation.mutateAsync(id)
   }
   function clearError() {

@@ -117,13 +117,13 @@ export async function createTicket({ titulo, descripcion, prioridad, estado = TI
   }
 
   const first = await db.from(TABLES.TICKETS).insert([payloadEN]).select()
-  if (!first.error) {
-    return mapDbToDomain(first.data?.[0])
+  if (!first.error && Array.isArray(first.data) && first.data.length) {
+    return mapDbToDomain(first.data[0])
   }
 
   const fallback = await db.from(TABLES.TICKETS).insert([payloadES]).select()
-  if (fallback.error) throw fromSupabase(fallback.error)
-  return mapDbToDomain(fallback.data?.[0])
+  if (fallback.error || !Array.isArray(fallback.data) || !fallback.data.length) throw fromSupabase(fallback.error || new Error('No se pudo crear el ticket'))
+  return mapDbToDomain(fallback.data[0])
 }
 
 // Actualiza el estado de un ticket.
@@ -137,8 +137,8 @@ export async function updateTicketStatus(id, newStatus) {
     .eq('id', valid.id)
     .select()
 
-  if (!first.error) {
-    return mapDbToDomain(first.data?.[0])
+  if (!first.error && Array.isArray(first.data) && first.data.length) {
+    return mapDbToDomain(first.data[0])
   }
 
   const fallback = await db
@@ -147,8 +147,8 @@ export async function updateTicketStatus(id, newStatus) {
     .eq('id', valid.id)
     .select()
 
-  if (fallback.error) throw fromSupabase(fallback.error)
-  return mapDbToDomain(fallback.data?.[0])
+  if (fallback.error || !Array.isArray(fallback.data) || !fallback.data.length) throw fromSupabase(fallback.error || new Error('No se pudo actualizar el estado'))
+  return mapDbToDomain(fallback.data[0])
 }
 
 // Elimina un ticket por id.

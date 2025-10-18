@@ -12,6 +12,8 @@ const TicketCard = ({ ticket, onUpdateStatus, onDelete }) => {
     })
   }
 
+  const isTemp = String(ticket.id).startsWith('temp-')
+
   return (
     <div className="bg-white rounded-2xl shadow-card border border-gray-100 overflow-hidden transition hover:shadow-card">
       <div className="p-5 border-b border-gray-100">
@@ -37,21 +39,24 @@ const TicketCard = ({ ticket, onUpdateStatus, onDelete }) => {
           {ticket.estado !== 'CERRADO' ? (
             <button
               onClick={() => onUpdateStatus(ticket.id, 'CERRADO')}
-              className="flex-1 px-3 py-2 bg-green-600 text-white text-sm font-medium rounded-xl hover:bg-green-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2 shadow-soft transition"
+              disabled={isTemp}
+              className="flex-1 px-3 py-2 bg-green-600 text-white text-sm font-medium rounded-xl hover:bg-green-700 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2 shadow-soft transition"
             >
               Cerrar Ticket
             </button>
           ) : (
             <button
               onClick={() => onUpdateStatus(ticket.id, 'ABIERTO')}
-              className="flex-1 px-3 py-2 bg-brand-600 text-white text-sm font-medium rounded-xl hover:bg-brand-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 shadow-soft transition"
+              disabled={isTemp}
+              className="flex-1 px-3 py-2 bg-brand-600 text-white text-sm font-medium rounded-xl hover:bg-brand-700 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 shadow-soft transition"
             >
               Reabrir
             </button>
           )}
           <button
             onClick={() => onDelete(ticket.id)}
-            className="px-3 py-2 bg-red-600 text-white text-sm font-medium rounded-xl hover:bg-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2 shadow-soft transition"
+            disabled={isTemp}
+            className="px-3 py-2 bg-red-600 text-white text-sm font-medium rounded-xl hover:bg-red-700 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2 shadow-soft transition"
           >
             Eliminar
           </button>
