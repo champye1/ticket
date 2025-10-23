@@ -202,15 +202,15 @@ export async function assignTicket(id, technician) {
   return mapped
 }
 
-async function insertTicketEventSafe(ticketId, type, details = {}, when = new Date().toISOString()) {
+async function insertTicketEventSafe(ticketId, type, details = {}, when = new Date().toISOString(), authorId = undefined, authorDisplayName = undefined) {
   const db = ensureDb()
   try {
-    const payloadEN = { ticket_id: ticketId, type, details, created_at: when }
+    const payloadEN = { ticket_id: ticketId, type, details, created_at: when, author_id: authorId, author_display_name: authorDisplayName }
     const res = await db.from('ticket_events').insert([payloadEN])
     if (!res.error) return true
   } catch (_) {}
   try {
-    const payloadES = { ticket_id: ticketId, tipo: type, detalle: JSON.stringify(details), created_at: when }
+    const payloadES = { ticket_id: ticketId, tipo: type, detalle: JSON.stringify(details), created_at: when, author_id: authorId, author_display_name: authorDisplayName }
     await db.from('ticket_events').insert([payloadES])
     return true
   } catch (_) {
@@ -260,9 +260,16 @@ export async function addTicketResponse(id, message) {
   const ok = await testConnection()
   if (!ok) throw new AppError(ErrorCodes.DB_CONNECTION, 'No hay conexión con la base de datos')
   const when = new Date().toISOString()
-  const logged = await insertTicketEventSafe(id, 'response', { message }, when)
+  let authorId
+  let authorDisplayName
+  try {
+    const { data } = await supabase.auth.getUser()
+    authorId = data?.user?.id
+    authorDisplayName = getDisplayNameFromUser(data?.user)
+  } catch (_) {}
+  const logged = await insertTicketEventSafe(id, 'response', { message }, when, authorId, authorDisplayName)
   if (!logged) throw new AppError(ErrorCodes.DB_SCHEMA, 'No se pudo registrar la respuesta')
-  return { ticket_id: id, type: 'response', message, created_at: when }
+  return { ticket_id: id, type: 'response', message, created_at: when, author_display_name: authorDisplayName }
 }
 
 // Obtener eventos de un ticket para renderizar timeline
@@ -281,6 +288,15 @@ export async function getTicketEvents(id) {
     if (typeof details === 'string') {
       try { details = JSON.parse(details) } catch (_) {}
     }
-    return { type, details, created_at: row.created_at }
+    return { type, details, created_at: row.created_at, author_display_name: row.author_display_name || (details && details.author_display_name) || null }
   })
+}
+
+function getDisplayNameFromUser(user) {
+  if (!user) return null
+  const m = user.user_metadata || {}
+  const base = m.full_name || m.name || m.username
+  if (base) return base
+  const email = user.email || ''
+  return email ? String(email).split('@')[0] : null
 }

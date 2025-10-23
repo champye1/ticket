@@ -1,4 +1,11 @@
 import React, { useEffect, useState } from 'react'
+import { z } from 'zod'
+
+const TicketSchema = z.object({
+  titulo: z.string().trim().min(4, 'El título requiere al menos 4 caracteres').max(100, 'Máximo 100 caracteres'),
+  descripcion: z.string().trim().min(10, 'Describe el problema con más detalle (≥10)').max(1000, 'Máximo 1000 caracteres'),
+  prioridad: z.enum(['BAJA', 'MEDIA', 'ALTA'], { errorMap: () => ({ message: 'Selecciona una prioridad válida' }) })
+})
 
 export default function TicketForm({ onCreate, loading, error, fieldErrors, onDismissError }) {
   const [titulo, setTitulo] = useState('')
@@ -28,14 +35,28 @@ export default function TicketForm({ onCreate, loading, error, fieldErrors, onDi
     setErrors(prev => ({ ...prev, ...fieldErrors }))
   }, [fieldErrors])
 
+  function validate() {
+    const res = TicketSchema.safeParse({ titulo, descripcion, prioridad })
+    if (!res.success) {
+      const fieldErrors = {}
+      for (const issue of res.error.issues) {
+        const key = issue.path?.[0]
+        if (key) fieldErrors[key] = issue.message
+      }
+      setErrors(fieldErrors)
+      return false
+    }
+    setErrors({})
+    return true
+  }
+
   async function handleSubmit(e) {
     e.preventDefault()
     setErrors({})
-    const tl = titulo.trim().length
-    const dl = descripcion.trim().length
-    if (tl < 3 || dl < 10) return
+    const ok = validate()
+    if (!ok) return
     try {
-      await onCreate({ titulo, descripcion, prioridad })
+      await onCreate({ titulo: titulo.trim(), descripcion: descripcion.trim(), prioridad })
       setTitulo('')
       setDescripcion('')
       setPrioridad('MEDIA')
@@ -46,8 +67,8 @@ export default function TicketForm({ onCreate, loading, error, fieldErrors, onDi
 
   const tituloLen = titulo.trim().length
   const descripcionLen = descripcion.trim().length
-  const isTituloValid = tituloLen >= 3
-  const isDescripcionValid = descripcionLen >= 10
+  const isTituloValid = !errors.titulo && tituloLen >= 4
+  const isDescripcionValid = !errors.descripcion && descripcionLen >= 10
   const canSubmit = !loading && isTituloValid && isDescripcionValid
   const [showAdvanced, setShowAdvanced] = useState(false)
 
@@ -59,12 +80,15 @@ export default function TicketForm({ onCreate, loading, error, fieldErrors, onDi
           type="text"
           value={titulo}
           onChange={(e) => setTitulo(e.target.value)}
-          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+          onBlur={validate}
+          aria-invalid={!!errors.titulo}
+          aria-describedby={errors.titulo ? 'error-titulo' : undefined}
+          className={`mt-1 block w-full rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 ${errors.titulo ? 'border-red-500' : 'border-gray-300'}`}
           placeholder="Ej: Error en login"
         />
         <div className="mt-1 flex items-center justify-between">
           {errors.titulo && (
-            <p className="text-xs text-red-600">{errors.titulo}</p>
+            <p id="error-titulo" className="text-xs text-red-600">{errors.titulo}</p>
           )}
           <span className={`text-[11px] ${isTituloValid ? 'text-gray-500' : 'text-red-600'}`}>{tituloLen}/100</span>
         </div>
@@ -75,13 +99,16 @@ export default function TicketForm({ onCreate, loading, error, fieldErrors, onDi
         <textarea
           value={descripcion}
           onChange={(e) => setDescripcion(e.target.value)}
-          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+          onBlur={validate}
+          aria-invalid={!!errors.descripcion}
+          aria-describedby={errors.descripcion ? 'error-descripcion' : undefined}
+          className={`mt-1 block w-full rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 ${errors.descripcion ? 'border-red-500' : 'border-gray-300'}`}
           rows={3}
           placeholder="Describe el problema..."
         />
         <div className="mt-1 flex items-center justify-between">
           {errors.descripcion && (
-            <p className="text-xs text-red-600">{errors.descripcion}</p>
+            <p id="error-descripcion" className="text-xs text-red-600">{errors.descripcion}</p>
           )}
           <span className={`text-[11px] ${isDescripcionValid ? 'text-gray-500' : 'text-red-600'}`}>{descripcionLen}/1000</span>
         </div>
@@ -100,14 +127,17 @@ export default function TicketForm({ onCreate, loading, error, fieldErrors, onDi
           <select
             value={prioridad}
             onChange={(e) => setPrioridad(e.target.value)}
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+            onBlur={validate}
+            aria-invalid={!!errors.prioridad}
+            aria-describedby={errors.prioridad ? 'error-prioridad' : undefined}
+            className={`mt-1 block w-full rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 ${errors.prioridad ? 'border-red-500' : 'border-gray-300'}`}
           >
             <option value="BAJA">Baja</option>
             <option value="MEDIA">Media</option>
             <option value="ALTA">Alta</option>
           </select>
           {errors.prioridad && (
-            <p className="mt-1 text-xs text-red-600">{errors.prioridad}</p>
+            <p id="error-prioridad" className="mt-1 text-xs text-red-600">{errors.prioridad}</p>
           )}
         </div>
       </div>

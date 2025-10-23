@@ -1,151 +1,106 @@
-# Sistema de Tickets de Soporte
+# Service Desk — Gestión de Tickets de Soporte
 
-Un sistema de gestión de tickets de soporte construido con React, Vite y Supabase.
+Aplicación Full‑Stack para gestionar tickets de soporte (crear, asignar, responder y cerrar) diseñada para demostrar capacidades de arquitectura moderna, seguridad basada en RLS y buenas prácticas de calidad de código. El objetivo del proyecto es mostrar competencias de diseño end‑to‑end con un stack simple, productivo y listo para producción.
 
-## 🚀 Características
+## Stack Tecnológico
 
-- Crear, cerrar y reabrir tickets
-- Búsqueda por título o descripción
-- Estados: Abierto, En Progreso, Cerrado
-- Prioridades: Baja, Media, Alta
-- Interfaz responsive con Tailwind y tokens de diseño
-- Supabase como backend (lectura/escritura) + React Query (optimista)
-- Pruebas de UI con Vitest + Testing Library
+- Front‑end
+  - React + Vite
+  - Zod (validación)
+  - Hooks y componentes funcionales
+- Back‑end (Edge Functions)
+  - Supabase Edge Functions (Node/TypeScript) para lógica sensible
+  - Autorización por JWT y control de roles
+- Base de Datos / BaaS
+  - Supabase (PostgreSQL)
+  - RLS (Row Level Security) y Policies basadas en JWT
+  - Autenticación (Email/Password) y sistema de Roles (Cliente vs. Técnico)
+- DevOps / Testing
+  - GitHub Actions (CI)
+  - Vitest (pruebas unitarias)
+  - ESLint + Prettier
 
-## 📋 Prerequisitos
+## Características Principales
 
-- Node.js (versión 16 o superior)
-- Cuenta de Supabase
+- Creación de tickets con validación robusta (Zod)
+- Asignación de tickets a técnicos (manual/automática)
+- Respuesta de clientes y técnicos con trazabilidad
+- Cierre de tickets con registro de eventos
+- Historial cronológico (timeline) por ticket
+- Búsqueda y filtros básicos
+- Autenticación y control de permisos por rol
 
-## 🛠️ Instalación
+## Arquitectura y Decisiones Técnicas Clave
 
-1. Clona el repositorio
-2. Instala las dependencias:
-   ```bash
-   npm install
-   ```
+### Por qué React + Supabase
+- React + Vite ofrece rapidez de desarrollo, DX simple y rendimiento.
+- Supabase aporta PostgreSQL administrado, autenticación y RLS nativas, reduciendo complejidad de backend tradicional.
+- El modelo "BaaS + Edge Functions" permite mover la lógica sensible al servidor con baja fricción.
 
-3. Configura Supabase:
-   - Ve a tu [dashboard de Supabase](https://supabase.com/dashboard)
-   - Crea un nuevo proyecto
-   - Ve a Settings > API
-   - Copia la URL del proyecto y la clave 'anon public'
-   - Crea un archivo `.env` en la raíz con:
-  ```env
-  VITE_SUPABASE_URL=tu_supabase_url
-  VITE_SUPABASE_ANON_KEY=tu_clave_anon
-  ```
-- Las credenciales se leen desde `import.meta.env` en `src/supabaseClient.js`
+### Seguridad
+- RLS en PostgreSQL garantiza que cada consulta esté filtrada por usuario/rol, evitando accesos indebidos incluso si el frontend es manipulado.
+- Políticas por rol (Cliente/Técnico) usando claims del JWT: `auth.uid()` y `auth.jwt() ->> 'role'`.
+- Lógica crítica (asignar, cerrar, responder) diseñada para ejecutarse en Edge Functions, reduciendo superficie de ataque en el cliente.
 
-4. Configura la base de datos:
-   - Ve a SQL Editor en tu dashboard de Supabase
-   - Ejecuta el siguiente SQL para crear la tabla de tickets:
-
-   ```sql
-   CREATE TABLE tickets (
-     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-     title TEXT NOT NULL,
-     description TEXT NOT NULL,
-     customer_name TEXT NOT NULL,
-     customer_email TEXT NOT NULL,
-     priority TEXT NOT NULL DEFAULT 'medium' CHECK (priority IN ('low', 'medium', 'high')),
-     status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'in_progress', 'closed')),
-     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-   );
-
-   -- Crear función para actualizar updated_at automáticamente
-   CREATE OR REPLACE FUNCTION update_updated_at_column()
-   RETURNS TRIGGER AS $$
-   BEGIN
-     NEW.updated_at = NOW();
-     RETURN NEW;
-   END;
-   $$ language 'plpgsql';
-
-   -- Crear trigger para actualizar updated_at
-   CREATE TRIGGER update_tickets_updated_at
-     BEFORE UPDATE ON tickets
-     FOR EACH ROW
-     EXECUTE FUNCTION update_updated_at_column();
-   ```
-
-5. Inicia el servidor de desarrollo:
-   ```bash
-   npm run dev
-   ```
-
-6. Abre tu navegador en `http://localhost:5174`
-
-## 📁 Estructura del Proyecto
-
-```
-src/
-├── components/
-│   ├── Header.jsx         # Hero y CTA
-│   ├── SearchBar.jsx      # Búsqueda controlada
-│   ├── TicketCard.jsx     # Tarjeta de ticket
-│   ├── TicketList.jsx     # Lista de tickets
-│   └── TicketForm.jsx     # Formulario para crear tickets
-├── services/
-│   └── ticketService.js   # Operaciones CRUD y mapeo dominio/BD
-├── hooks/
-│   └── useTickets.js      # Estado central con React Query
-├── errors.js              # Normalización de errores
-├── supabaseClient.js      # Cliente Supabase con variables de entorno
-├── App.jsx                # Orquestador de la UI
-├── main.jsx               # Punto de entrada con QueryClientProvider
-└── index.css              # Estilos globales
+Ejemplo de RLS (SELECT de tickets para dueño o técnico):
+```sql
+create policy tickets_select_owner_or_tecnico
+on public.tickets
+for select
+to authenticated
+using (
+  created_by = auth.uid() or (auth.jwt() ->> 'role') = 'Tecnico'
+);
 ```
 
-## 🎨 Tecnologías Utilizadas
+### Auditoría (ticket_events)
+- Cada cambio relevante genera un evento con `author_id`, `author_display_name` y `created_at`.
+- Estructura simplificada:
+```sql
+-- Columnas clave
+-- ticket_events(id, ticket_id, type, details, author_id, author_display_name, created_at)
+```
+- Índice por `ticket_id, created_at desc` optimiza la visualización del timeline.
 
-- **React** - Biblioteca de JavaScript para interfaces de usuario
-- **Vite** - Herramienta de construcción rápida
-- **Supabase** - Backend como servicio (BaaS)
-- **TanStack React Query** - Caché, reintentos y actualizaciones optimistas
-- **Tailwind CSS** - Framework de CSS utilitario
-- **Lucide React** - Iconos
+### Edge Functions (diseño)
+- `assignTicket`: valida rol Técnico, cambia `assigned_to`, registra evento.
+- `closeTicket`: valida rol Técnico, cambia estado a CERRADO, registra evento.
+- `addResponse`: valida que el autor sea autenticado y permitido, registra evento respuesta.
+- Beneficio: la lógica y validaciones viven fuera del cliente, con permisos verificados en el servidor.
 
-## 📝 Uso
+## Guía de Inicio Rápido
 
-1. Crear un ticket: completa el formulario y pulsa "Crear ticket"
-2. Buscar: usa el campo de búsqueda por título o descripción
-3. Cambiar estado: botones "Cerrar Ticket" / "Reabrir" en cada tarjeta
-4. Eliminar: botón "Eliminar" en la tarjeta
-5. Actualizar lista: botón "Actualizar" en el encabezado
-
-## 🔧 Configuración de Supabase
-
-### Variables de Entorno
-
-Este proyecto usa variables de entorno de Vite. Crea un `.env` en la raíz:
-
-```env
-VITE_SUPABASE_URL=tu_supabase_url
-VITE_SUPABASE_ANON_KEY=tu_supabase_anon_key
+1) Clonar e instalar
+```bash
+git clone <repo-url>
+cd ticket
+npm install
 ```
 
-`src/supabaseClient.js` ya lee estas variables vía `import.meta.env`. No subas `.env` al repositorio.
+2) Configuración de entorno
+- Crear `.env` (o `.env.local`) con:
+```
+VITE_SUPABASE_URL=https://<YOUR-PROJECT>.supabase.co
+VITE_SUPABASE_ANON_KEY=<YOUR-ANON-KEY>
+```
 
-## 🚀 Despliegue
+3) Levantar en desarrollo
+```bash
+npm run dev
+```
 
-### Vercel (Recomendado)
-1. Importa el repositorio en Vercel (GitHub/GitLab/Bitbucket).
-2. Framework: Vite. Build: `npm run build`. Output: `dist`. Node: 18 o 20.
-3. Variables de entorno (Project Settings → Environment Variables):
-   - `VITE_SUPABASE_URL`: URL del proyecto Supabase
-   - `VITE_SUPABASE_ANON_KEY`: Anon key del proyecto Supabase
-   - No definas `VITE_PUBLIC_BASE` (en Vercel debe quedar vacío o sin crear).
-4. Despliega: Vercel hará el build automático y publicará en `https://<tu-proyecto>.vercel.app`.
-5. Opcional: añade dominio personalizado y actualiza la etiqueta `canonical` en `index.html`.
+4) Ejecutar pruebas
+```bash
+npm run test
+```
 
-### Netlify
+5) Configurar Base de Datos (Supabase)
+- Abrir el SQL Editor de Supabase y ejecutar el script:
+  - `supabase/sql/2025-10-23_ticket_events_audit.sql`
+- (Opcional) Añadir RLS avanzadas en `public.tickets` para roles Cliente/Técnico según tu modelo.
 
-1. Conecta tu repositorio a Netlify
-2. Configura las variables de entorno
-3. Despliega automáticamente
+## Contribución y Licencia
 
-## 📄 Licencia
-
-Este proyecto está bajo la Licencia MIT.
+- Contribuciones bienvenidas vía Pull Requests.
+- Estilo de código: ESLint/Prettier, pruebas con Vitest.
+- Licencia: MIT.

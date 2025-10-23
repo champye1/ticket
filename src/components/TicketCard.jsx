@@ -78,6 +78,8 @@ const TicketCard = ({ ticket, onUpdateStatus, onDelete, onAssign, onRespond, tec
             <ul className="space-y-1 text-xs text-gray-600">
               {events.map((ev, i) => (
                 <li key={i}>
+                  {ev.author_display_name ? (<span className="font-semibold">{ev.author_display_name}</span>) : null}
+                  {ev.author_display_name ? ' · ' : ''}
                   {new Date(ev.created_at).toLocaleString('es-ES')} · {renderEvent(ev)}
                 </li>
               ))}
