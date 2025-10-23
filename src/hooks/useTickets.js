@@ -15,6 +15,7 @@ export function useTickets() {
   const [fieldErrors, setFieldErrors] = useState(null)
   const [page] = useState(1)
   const [pageSize] = useState(20)
+  const [lastSyncedAt, setLastSyncedAt] = useState(null)
 
   const {
     data: pageData,
@@ -27,7 +28,10 @@ export function useTickets() {
     queryFn: () => getTicketsPaged({ page, pageSize }),
     staleTime: Infinity,
     refetchOnWindowFocus: false,
-    refetchOnReconnect: false
+    refetchOnReconnect: false,
+    onSuccess: () => {
+      setLastSyncedAt(new Date().toISOString())
+    }
   })
 
   useEffect(() => {
@@ -144,7 +148,7 @@ export function useTickets() {
   function refresh() {
     setError(null)
     setFieldErrors(null)
-    return refetch()
+    return refetch().then(() => setLastSyncedAt(new Date().toISOString()))
   }
   function addTicket({ titulo, descripcion, prioridad }) {
     setError(null)
@@ -189,6 +193,7 @@ export function useTickets() {
     removeTicket,
     error,
     fieldErrors,
-    clearError
+    clearError,
+    lastSyncedAt
   }
 }
