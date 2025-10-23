@@ -10,6 +10,7 @@ export interface Ticket {
   prioridad: TicketPriority
   estado: TicketStatus
   created_at?: string
+  assigned_to?: string | null
 }
 
 export interface CreateTicketDTO {

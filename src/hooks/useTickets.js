@@ -3,19 +3,32 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { TICKET_STATUS } from '../constants'
-import { getTicketsPaged, createTicket, updateTicketStatus, deleteTicket } from '../services/ticketService'
+import { getTicketsPaged, createTicket, updateTicketStatus, deleteTicket, assignTicket, getTechnicians, addTicketResponse as addTicketResponseService } from '../services/ticketService'
 import { AppError, ErrorCodes } from '../errors'
+import { TICKET_STATUS } from '../constants'
 
-export function useTickets() {
+const FILTERS_KEY = 'filters_v1'
+
+export default function useTickets() {
   const queryClient = useQueryClient()
 
-  const [searchTerm, setSearchTerm] = useState('')
+  const [searchTerm, setSearchTerm] = useState(() => {
+    try { return (JSON.parse(localStorage.getItem(FILTERS_KEY) || '{}').search) || '' } catch (_) { return '' }
+  })
   const [error, setError] = useState(null)
   const [fieldErrors, setFieldErrors] = useState(null)
   const [page] = useState(1)
   const [pageSize] = useState(20)
   const [lastSyncedAt, setLastSyncedAt] = useState(null)
+  const [statusFilter, setStatusFilter] = useState(() => {
+    try { return (JSON.parse(localStorage.getItem(FILTERS_KEY) || '{}').status) || '' } catch (_) { return '' }
+  })
+  const [priorityFilter, setPriorityFilter] = useState(() => {
+    try { return (JSON.parse(localStorage.getItem(FILTERS_KEY) || '{}').priority) || '' } catch (_) { return '' }
+  })
+  const [techFilter, setTechFilter] = useState(() => {
+    try { return (JSON.parse(localStorage.getItem(FILTERS_KEY) || '{}').tech) || '' } catch (_) { return '' }
+  })
 
   const {
     data: pageData,
@@ -34,6 +47,12 @@ export function useTickets() {
     }
   })
 
+  const techniciansQuery = useQuery({
+    queryKey: ['technicians'],
+    queryFn: getTechnicians,
+    staleTime: 60_000,
+  })
+
   useEffect(() => {
     if (queryError) setError(queryError)
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -41,14 +60,30 @@ export function useTickets() {
 
   const tickets = pageData?.items || []
 
+  useEffect(() => {
+    try {
+      const payload = { search: searchTerm, status: statusFilter, priority: priorityFilter, tech: techFilter }
+      localStorage.setItem(FILTERS_KEY, JSON.stringify(payload))
+    } catch (_) {}
+  }, [searchTerm, statusFilter, priorityFilter, techFilter])
+
   const filteredTickets = useMemo(() => {
-    if (!searchTerm) return tickets
-    const term = searchTerm.toLowerCase()
-    return tickets.filter(t =>
-      (t.titulo || '').toLowerCase().includes(term) ||
-      (t.descripcion || '').toLowerCase().includes(term)
-    )
-  }, [tickets, searchTerm])
+    let list = tickets
+    if (searchTerm) {
+      const term = searchTerm.toLowerCase()
+      list = list.filter(t =>
+        (t.titulo || '').toLowerCase().includes(term) ||
+        (t.descripcion || '').toLowerCase().includes(term)
+      )
+    }
+    if (statusFilter) list = list.filter(t => t.estado === statusFilter)
+    if (priorityFilter) list = list.filter(t => t.prioridad === priorityFilter)
+    if (techFilter) {
+      if (techFilter === '__UNASSIGNED__') list = list.filter(t => !t.assigned_to)
+      else list = list.filter(t => (t.assigned_to || '') === techFilter)
+    }
+    return list
+  }, [tickets, searchTerm, statusFilter, priorityFilter, techFilter])
 
   // Crear nuevo ticket con update optimista
   const addMutation = useMutation({
@@ -99,7 +134,14 @@ export function useTickets() {
 
   // Actualizar estado con update optimista
   const updateMutation = useMutation({
-    mutationFn: ({ id, newStatus }) => updateTicketStatus(id, newStatus),
+    mutationFn: ({ id, newStatus }) => {
+      if (String(id).startsWith('temp-')) {
+        const err = new AppError(ErrorCodes.DB_SCHEMA, 'Operación no permitida sobre id temporal. Actualiza la lista para sincronizar.')
+        setError(err)
+        return Promise.reject(err)
+      }
+      return updateTicketStatus(id, newStatus)
+    },
     onMutate: async ({ id, newStatus }) => {
       await queryClient.cancelQueries({ queryKey: ['tickets', page, pageSize] })
       const previous = queryClient.getQueryData(['tickets', page, pageSize])
@@ -145,6 +187,59 @@ export function useTickets() {
     }
   })
 
+  const assignMutation = useMutation({
+    mutationFn: ({ id, technician }) => {
+      if (String(id).startsWith('temp-')) {
+        const err = new AppError(ErrorCodes.DB_SCHEMA, 'No puedes asignar un ticket con id temporal. Actualiza primero.')
+        setError(err)
+        return Promise.reject(err)
+      }
+      return assignTicket(id, technician)
+    },
+    onMutate: async ({ id, technician }) => {
+      await queryClient.cancelQueries({ queryKey: ['tickets', page, pageSize] })
+      const previous = queryClient.getQueryData(['tickets', page, pageSize])
+      queryClient.setQueryData(['tickets', page, pageSize], (old) => ({
+        items: (old?.items || []).map(t => String(t.id) === String(id) ? { ...t, assigned_to: technician } : t),
+        total: old?.total ?? 0
+      }))
+      return { previous }
+    },
+    onError: (err, _vars, ctx) => {
+      if (ctx?.previous) queryClient.setQueryData(['tickets', page, pageSize], ctx.previous)
+      setError(err)
+    },
+    onSuccess: (updated) => {
+      queryClient.setQueryData(['tickets', page, pageSize], (old) => ({
+        items: (old?.items || []).map(t => String(t.id) === String(updated.id) ? updated : t),
+        total: old?.total ?? 0
+      }))
+    },
+    onSettled: () => {}
+  })
+
+  // Responder ticket: registra evento, sin modificar lista
+  const respondMutation = useMutation({
+    mutationFn: ({ id, message }) => {
+      if (String(id).startsWith('temp-')) {
+        const err = new AppError(ErrorCodes.DB_SCHEMA, 'No puedes responder a un ticket temporal.')
+        setError(err)
+        return Promise.reject(err)
+      }
+      return addTicketResponseService(id, message)
+    },
+    onError: (err) => {
+      setError(err)
+    },
+    onSuccess: () => {},
+    onSettled: () => {}
+  })
+
+  function assignToTechnician(id, technician) {
+    setError(null)
+    return assignMutation.mutateAsync({ id, technician })
+  }
+
   function refresh() {
     setError(null)
     setFieldErrors(null)
@@ -175,25 +270,42 @@ export function useTickets() {
     }
     return deleteMutation.mutateAsync(id)
   }
+  function addTicketResponse(id, message) {
+    setError(null)
+    if (String(id).startsWith('temp-')) {
+      const err = new AppError(ErrorCodes.UNKNOWN, 'Este ticket aún se está creando. Pulsa “Actualizar” y vuelve a intentar cuando tenga un ID real.')
+      setError(err)
+      return Promise.reject(err)
+    }
+    return respondMutation.mutateAsync({ id, message })
+  }
   function clearError() {
     setError(null)
     setFieldErrors(null)
   }
 
-  const loading = isQueryLoading || isFetching || addMutation.isLoading || updateMutation.isLoading || deleteMutation.isLoading
+  const loading = isQueryLoading || isFetching || addMutation.isLoading || updateMutation.isLoading || deleteMutation.isLoading || assignMutation.isLoading || techniciansQuery.isLoading || respondMutation.isLoading
 
   return {
-    filteredTickets,
+    tickets: filteredTickets,
     loading,
-    searchTerm,
-    setSearchTerm,
-    refresh,
-    addTicket,
-    setTicketStatus,
-    removeTicket,
     error,
     fieldErrors,
     clearError,
-    lastSyncedAt
+    addTicket,
+    addTicketResponse,
+    setTicketStatus,
+    removeTicket,
+    refresh,
+    search: searchTerm,
+    setSearch: setSearchTerm,
+    statusFilter,
+    setStatusFilter,
+    priorityFilter,
+    setPriorityFilter,
+    techFilter,
+    setTechFilter,
+    assignToTechnician,
+    technicians: techniciansQuery.data || [],
   }
 }

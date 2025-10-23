@@ -31,6 +31,9 @@ export default function TicketForm({ onCreate, loading, error, fieldErrors, onDi
   async function handleSubmit(e) {
     e.preventDefault()
     setErrors({})
+    const tl = titulo.trim().length
+    const dl = descripcion.trim().length
+    if (tl < 3 || dl < 10) return
     try {
       await onCreate({ titulo, descripcion, prioridad })
       setTitulo('')
@@ -40,6 +43,13 @@ export default function TicketForm({ onCreate, loading, error, fieldErrors, onDi
       // No dejar promesas sin capturar; UI usa error/fieldErrors para mostrarlo
     }
   }
+
+  const tituloLen = titulo.trim().length
+  const descripcionLen = descripcion.trim().length
+  const isTituloValid = tituloLen >= 3
+  const isDescripcionValid = descripcionLen >= 10
+  const canSubmit = !loading && isTituloValid && isDescripcionValid
+  const [showAdvanced, setShowAdvanced] = useState(false)
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4 p-4 border rounded-md bg-white">
@@ -52,9 +62,12 @@ export default function TicketForm({ onCreate, loading, error, fieldErrors, onDi
           className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
           placeholder="Ej: Error en login"
         />
-        {errors.titulo && (
-          <p className="mt-1 text-xs text-red-600">{errors.titulo}</p>
-        )}
+        <div className="mt-1 flex items-center justify-between">
+          {errors.titulo && (
+            <p className="text-xs text-red-600">{errors.titulo}</p>
+          )}
+          <span className={`text-[11px] ${isTituloValid ? 'text-gray-500' : 'text-red-600'}`}>{tituloLen}/100</span>
+        </div>
       </div>
 
       <div>
@@ -66,25 +79,37 @@ export default function TicketForm({ onCreate, loading, error, fieldErrors, onDi
           rows={3}
           placeholder="Describe el problema..."
         />
-        {errors.descripcion && (
-          <p className="mt-1 text-xs text-red-600">{errors.descripcion}</p>
-        )}
+        <div className="mt-1 flex items-center justify-between">
+          {errors.descripcion && (
+            <p className="text-xs text-red-600">{errors.descripcion}</p>
+          )}
+          <span className={`text-[11px] ${isDescripcionValid ? 'text-gray-500' : 'text-red-600'}`}>{descripcionLen}/1000</span>
+        </div>
       </div>
 
-      <div>
-        <label className="block text-sm font-medium text-gray-700">Prioridad</label>
-        <select
-          value={prioridad}
-          onChange={(e) => setPrioridad(e.target.value)}
-          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+      <div className="rounded-md border border-gray-200">
+        <button
+          type="button"
+          onClick={() => setShowAdvanced(v => !v)}
+          className="w-full text-left px-3 py-2 text-sm font-medium bg-gray-50 hover:bg-gray-100 rounded-t-md"
         >
-          <option value="BAJA">Baja</option>
-          <option value="MEDIA">Media</option>
-          <option value="ALTA">Alta</option>
-        </select>
-        {errors.prioridad && (
-          <p className="mt-1 text-xs text-red-600">{errors.prioridad}</p>
-        )}
+          Opciones avanzadas
+        </button>
+        <div className={`${showAdvanced ? 'block' : 'hidden'} p-3`}>
+          <label className="block text-sm font-medium text-gray-700">Prioridad</label>
+          <select
+            value={prioridad}
+            onChange={(e) => setPrioridad(e.target.value)}
+            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+          >
+            <option value="BAJA">Baja</option>
+            <option value="MEDIA">Media</option>
+            <option value="ALTA">Alta</option>
+          </select>
+          {errors.prioridad && (
+            <p className="mt-1 text-xs text-red-600">{errors.prioridad}</p>
+          )}
+        </div>
       </div>
 
       {error && error.code !== 'VALIDATION' && (
@@ -99,7 +124,7 @@ export default function TicketForm({ onCreate, loading, error, fieldErrors, onDi
       <div className="flex items-center gap-2">
         <button
           type="submit"
-          disabled={loading}
+          disabled={!canSubmit}
           className="inline-flex items-center rounded-md bg-indigo-600 px-4 py-2 text-white shadow-sm hover:bg-indigo-700 disabled:opacity-50"
         >
           {loading ? 'Guardando...' : 'Crear ticket'}

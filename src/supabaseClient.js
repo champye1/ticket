@@ -14,8 +14,8 @@ if (!hasSupabaseEnv) {
 export const supabase = hasSupabaseEnv
   ? createClient(supabaseUrl, supabaseAnonKey, {
       auth: {
-        persistSession: false,
-        autoRefreshToken: false
+        persistSession: true,
+        autoRefreshToken: true
       }
     })
   : null
